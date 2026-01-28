@@ -1,0 +1,10 @@
+# PocketBase
+/pb_data
+/backend/pb_data
+/backend/pocketbase
+
+# Node
+node_modules/
+dist/
+.env
+.DS_Store

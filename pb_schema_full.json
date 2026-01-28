@@ -1,0 +1,91 @@
+[
+    {
+        "id": "pbc_3142635823",
+        "name": "_superusers",
+        "type": "auth",
+        "system": true,
+        "fields": [
+            { "name": "id", "type": "text", "required": true, "primaryKey": true, "autogeneratePattern": "[a-z0-9]{15}" },
+            { "name": "password", "type": "password", "required": true, "hidden": true },
+            { "name": "tokenKey", "type": "text", "required": true, "hidden": true },
+            { "name": "email", "type": "email", "required": true },
+            { "name": "emailVisibility", "type": "bool" },
+            { "name": "verified", "type": "bool" },
+            { "name": "created", "type": "autodate" },
+            { "name": "updated", "type": "autodate" }
+        ]
+    },
+    {
+        "id": "_pb_users_auth_",
+        "name": "users",
+        "type": "auth",
+        "system": false,
+        "fields": [
+            { "name": "id", "type": "text", "required": true, "primaryKey": true, "autogeneratePattern": "[a-z0-9]{15}" },
+            { "name": "password", "type": "password", "required": true, "hidden": true },
+            { "name": "tokenKey", "type": "text", "required": true, "hidden": true },
+            { "name": "email", "type": "email", "required": true },
+            { "name": "name", "type": "text" },
+            { "name": "avatar", "type": "file" },
+            { "name": "created", "type": "autodate" },
+            { "name": "updated", "type": "autodate" }
+        ]
+    },
+    {
+        "name": "shops",
+        "type": "base",
+        "fields": [
+            { "name": "name", "type": "text", "required": true },
+            { "name": "owner", "type": "relation", "collectionId": "_pb_users_auth_", "cascadeDelete": true },
+            { "name": "commission_rate", "type": "number", "required": true, "min": 0, "max": 100, "description": "Porcentaje que cobra la plataforma a esta tienda" }
+        ]
+    },
+    {
+        "name": "affiliates",
+        "type": "base",
+        "fields": [
+            { "name": "user", "type": "relation", "collectionId": "_pb_users_auth_", "cascadeDelete": true },
+            { "name": "code", "type": "text", "required": true, "unique": true },
+            { "name": "commission_rate", "type": "number", "required": true, "min": 0, "max": 100 }
+        ]
+    },
+    {
+        "name": "products",
+        "type": "base",
+        "fields": [
+            { "name": "shop", "type": "relation", "collectionId": "shops", "cascadeDelete": true },
+            { "name": "name", "type": "text", "required": true },
+            { "name": "base_price", "type": "number", "required": true, "min": 0 }
+        ]
+    },
+    {
+        "name": "price_groups",
+        "type": "base",
+        "fields": [
+            { "name": "shop", "type": "relation", "collectionId": "shops", "cascadeDelete": true },
+            { "name": "name", "type": "text", "required": true, "description": "Ej: Mayoristas, VIP" }
+        ]
+    },
+    {
+        "name": "product_prices",
+        "type": "base",
+        "fields": [
+            { "name": "product", "type": "relation", "collectionId": "products", "cascadeDelete": true },
+            { "name": "group", "type": "relation", "collectionId": "price_groups", "cascadeDelete": true },
+            { "name": "price", "type": "number", "required": true, "min": 0 }
+        ],
+        "indexes": ["CREATE UNIQUE INDEX idx_prod_group ON product_prices (product, `group`)"]
+    },
+    {
+        "name": "sales",
+        "type": "base",
+        "fields": [
+            { "name": "shop", "type": "relation", "collectionId": "shops" },
+            { "name": "affiliate", "type": "relation", "collectionId": "affiliates" },
+            { "name": "total_amount", "type": "number", "required": true },
+            { "name": "platform_fee", "type": "number", "description": "Calculado automáticamente" },
+            { "name": "affiliate_commission", "type": "number", "description": "Calculado automáticamente" },
+            { "name": "items", "type": "json", "description": "Detalle de productos vendidos" }
+        ]
+    }
+]
