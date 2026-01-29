@@ -97,15 +97,15 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		// Borrar dependientes primero para evitar errores de FK
 		if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
 			log.Println("🗑️ Borrando 'sales' por dependencia...")
-			app.DeleteCollection(sales)
+			app.Delete(sales)
 		}
 		if products, _ := app.FindCollectionByNameOrId("products"); products != nil {
 			log.Println("🗑️ Borrando 'products' por dependencia...")
-			app.DeleteCollection(products)
+			app.Delete(products)
 		}
 		
 		log.Println("🗑️ Eliminando colección 'shops' corrupta...")
-		if err := app.DeleteCollection(shopsCol); err != nil {
+		if err := app.Delete(shopsCol); err != nil {
 			return err
 		}
 		shopsCol = nil
@@ -227,7 +227,7 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		field := salesCol.Fields.GetByName("shop")
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
-				app.DeleteCollection(salesCol)
+				app.Delete(salesCol)
 				salesCol = nil
 			}
 		}
