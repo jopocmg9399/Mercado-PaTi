@@ -1,0 +1,64 @@
+[
+    {
+        "id": "shops0000000000",
+        "name": "shops",
+        "type": "base",
+        "fields": [
+            { "name": "name", "type": "text", "required": true },
+            { "name": "owner", "type": "relation", "collectionId": "_pb_users_auth_", "cascadeDelete": true },
+            { "name": "commission_rate", "type": "number", "required": true, "min": 0, "max": 100, "description": "Porcentaje que cobra la plataforma a esta tienda" }
+        ]
+    },
+    {
+        "id": "affiliates00000",
+        "name": "affiliates",
+        "type": "base",
+        "fields": [
+            { "name": "user", "type": "relation", "collectionId": "_pb_users_auth_", "cascadeDelete": true },
+            { "name": "code", "type": "text", "required": true, "unique": true },
+            { "name": "commission_rate", "type": "number", "required": true, "min": 0, "max": 100 }
+        ]
+    },
+    {
+        "id": "products0000000",
+        "name": "products",
+        "type": "base",
+        "fields": [
+            { "name": "shop", "type": "relation", "collectionId": "shops0000000000", "cascadeDelete": true },
+            { "name": "name", "type": "text", "required": true },
+            { "name": "base_price", "type": "number", "required": true, "min": 0 }
+        ]
+    },
+    {
+        "id": "price_groups000",
+        "name": "price_groups",
+        "type": "base",
+        "fields": [
+            { "name": "shop", "type": "relation", "collectionId": "shops0000000000", "cascadeDelete": true },
+            { "name": "name", "type": "text", "required": true, "description": "Ej: Mayoristas, VIP" }
+        ]
+    },
+    {
+        "id": "prod_prices0000",
+        "name": "product_prices",
+        "type": "base",
+        "fields": [
+            { "name": "product", "type": "relation", "collectionId": "products0000000", "cascadeDelete": true },
+            { "name": "group", "type": "relation", "collectionId": "price_groups000", "cascadeDelete": true },
+            { "name": "price", "type": "number", "required": true, "min": 0 }
+        ]
+    },
+    {
+        "id": "sales0000000000",
+        "name": "sales",
+        "type": "base",
+        "fields": [
+            { "name": "shop", "type": "relation", "collectionId": "shops0000000000" },
+            { "name": "affiliate", "type": "relation", "collectionId": "affiliates00000" },
+            { "name": "total_amount", "type": "number", "required": true },
+            { "name": "platform_fee", "type": "number", "description": "Calculado automáticamente" },
+            { "name": "affiliate_commission", "type": "number", "description": "Calculado automáticamente" },
+            { "name": "items", "type": "json", "description": "Detalle de productos vendidos" }
+        ]
+    }
+]

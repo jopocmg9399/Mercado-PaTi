@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { pb } from './lib/pocketbase';
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Layout } from './components/Layout';
+import { Dashboard } from './pages/Dashboard';
+import { Shops } from './pages/Shops';
+import { Products, Affiliates, Sales } from './pages/Placeholders';
 
 // Componente simple de Login
 function Login() {
@@ -10,54 +14,42 @@ function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     try {
-      await pb.collection('users').authWithPassword(email, password);
+      // Intentar autenticación contra la colección de superusuarios (Admins)
+      try {
+        await pb.collection('_superusers').authWithPassword(email, password);
+      } catch (adminErr) {
+        console.log("No es admin, intentando usuario normal...");
+        // Si falla, intentar como usuario normal
+        await pb.collection('users').authWithPassword(email, password);
+      }
       window.location.reload(); // Recargar para actualizar estado de auth
-    } catch (err) {
-      setError('Credenciales inválidas');
+    } catch (err: any) {
+      console.error("Error login:", err);
+      const msg = err?.data?.message || err?.message || JSON.stringify(err);
+      setError(`Error: ${msg}`);
     }
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Iniciar Sesión</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <form onSubmit={handleLogin}>
-        <div>
-          <label>Email:</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
-        <div>
-          <label>Password:</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
-        </div>
-        <button type="submit">Entrar</button>
-      </form>
-    </div>
-  );
-}
-
-// Dashboard de Tienda (Ejemplo)
-function ShopDashboard() {
-  const [shops, setShops] = useState<any[]>([]);
-
-  useEffect(() => {
-    pb.collection('shops').getList(1, 50, {
-      filter: `owner = "${pb.authStore.model?.id}"`
-    }).then(res => setShops(res.items));
-  }, []);
-
-  return (
-    <div style={{ padding: '20px' }}>
-      <h1>Mis Tiendas</h1>
-      <ul>
-        {shops.map(shop => (
-          <li key={shop.id}>
-            {shop.name} - Comisión Plataforma: {shop.commission_rate}%
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => { pb.authStore.clear(); window.location.reload(); }}>Cerrar Sesión</button>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f5f5f5' }}>
+      <div style={{ padding: '40px', background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Mercado PaTi</h2>
+        {error && <div style={{ color: 'white', background: '#ff4444', padding: '10px', borderRadius: '4px', marginBottom: '20px' }}>{error}</div>}
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '10px', boxSizing: 'border-box' }} required />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Password:</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '10px', boxSizing: 'border-box' }} required />
+          </div>
+          <button type="submit" style={{ width: '100%', padding: '12px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>Entrar</button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -68,8 +60,18 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={isValid ? <ShopDashboard /> : <Login />} />
-        {/* Aquí irían más rutas como /affiliates, /products, etc. */}
+        {!isValid ? (
+          <Route path="*" element={<Login />} />
+        ) : (
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/shops" element={<Shops />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/affiliates" element={<Affiliates />} />
+            <Route path="/sales" element={<Sales />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Route>
+        )}
       </Routes>
     </BrowserRouter>
   );
