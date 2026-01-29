@@ -2,15 +2,28 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/plugins/migratecmd"
+	
+	// Importar migraciones (se debe crear el paquete, pero lo haremos inline o en carpeta)
+	// Para simplificar en este entorno sin multi-archivo fácil, usaremos automigrate o
+	// definiremos la migración aquí mismo si es posible, pero PocketBase prefiere archivos.
+	// Vamos a registrar una migración programática directamente.
 )
 
 func main() {
 	app := pocketbase.New()
 
-	// Inicialización: Admin y Esquema
+	// Registrar comando de migraciones (necesario para que se ejecuten al inicio con --automigrate)
+	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
+		Automigrate: true, // Esto habilita la auto-migración de esquemas si cambiamos structs
+	})
+
+	// Inicialización: Admin y Esquema via Hook (Más seguro que migraciones si no tenemos CLI access)
+	// PERO vamos a hacerlo con logs EXPLICITOS y panic si falla para ver el error en Render.
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// 1. Asegurar Admin
 		totalAdmins, err := app.FindRecordsByFilter("_superusers", "id != ''", "", 1, 0, nil)
@@ -20,14 +33,21 @@ func main() {
 				record := core.NewRecord(superuserCollection)
 				record.Set("email", "admin@pati.com")
 				record.Set("password", "1234567890")
-				app.Save(record)
-				log.Println("✅ Admin creado: admin@pati.com")
+				if err := app.Save(record); err != nil {
+					log.Printf("❌ ERROR CREANDO ADMIN: %v", err)
+				} else {
+					log.Println("✅ Admin creado: admin@pati.com")
+				}
 			}
 		}
 
-		// 2. Asegurar Esquema (Reparación Automática)
+		// 2. Asegurar Esquema con Logs Fuertes
+		log.Println("🔄 Iniciando verificación de esquema...")
 		if err := ensureSchema(app); err != nil {
-			log.Printf("⚠️ Error asegurando esquema: %v", err)
+			log.Printf("❌ CRITICAL ERROR ASEGURANDO ESQUEMA: %v", err)
+			// No hacemos panic para no tumbar el servidor, pero el log debe salir.
+		} else {
+			log.Println("✅ Esquema verificado correctamente.")
 		}
 
 		return e.Next()
@@ -40,32 +60,41 @@ func main() {
 
 // ensureSchema crea o repara las colecciones necesarias
 func ensureSchema(app *pocketbase.PocketBase) error {
-	// Obtener la colección 'users' real para usar su ID correcto
+	// Obtener la colección 'users' real
 	usersCol, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
-		return err // Si no hay usuarios, algo grave pasa
+		return err
 	}
+	log.Printf("ℹ️ ID de colección 'users': %s", usersCol.Id)
 
 	// --- SHOPS ---
-	// ESTRATEGIA AGRESIVA: Si la colección existe, verificar si el campo owner es válido.
-	// Si da problemas, la borramos y recreamos.
 	shopsCol, err := app.FindCollectionByNameOrId("shops")
 	if err == nil {
-		// Verificar integridad del campo owner
-		ownerField := shopsCol.Fields.GetByName("owner")
-		isValid := false
-		if relField, ok := ownerField.(*core.RelationField); ok {
-			if relField.CollectionId == usersCol.Id {
-				isValid = true
+		// Verificar integridad
+		field := shopsCol.Fields.GetByName("owner")
+		recreate := false
+		if relField, ok := field.(*core.RelationField); ok {
+			if relField.CollectionId != usersCol.Id {
+				log.Println("⚠️ ID de owner en 'shops' incorrecto. Marcado para recreación.")
+				recreate = true
 			}
+		} else {
+			log.Println("⚠️ Campo owner en 'shops' no es relación. Marcado para recreación.")
+			recreate = true
 		}
 
-		if !isValid {
-			log.Println("⚠️ DETECTADO ESQUEMA CORRUPTO EN 'shops'. Eliminando para reparar...")
+		if recreate {
+			log.Println("🗑️ Eliminando colección 'shops' corrupta...")
 			if err := app.DeleteCollection(shopsCol); err != nil {
 				return err
 			}
-			shopsCol = nil // Forzar recreación
+			shopsCol = nil
+		}
+	} else {
+		// Ignorar error si no existe, simplemente es nil
+		if !strings.Contains(err.Error(), "no rows") && !strings.Contains(err.Error(), "not found") {
+			// Loguear error real si no es "no encontrado"
+			log.Printf("⚠️ Error buscando shops: %v", err)
 		}
 	}
 
@@ -73,59 +102,40 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		log.Println("🛠️ Creando colección 'shops'...")
 		shopsCol = core.NewBaseCollection("shops")
 		
-		// Usamos asignación directa de errores para evitar problemas de compilación
-		var err error
-		err = shopsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
-		if err != nil { return err }
-		
-		err = shopsCol.Fields.Add(&core.NumberField{Name: "commission_rate"})
-		if err != nil { return err }
-
-		// Aquí está la clave: Usamos usersCol.Id dinámico
-		err = shopsCol.Fields.Add(&core.RelationField{
+		shopsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
+		shopsCol.Fields.Add(&core.NumberField{Name: "commission_rate"})
+		shopsCol.Fields.Add(&core.RelationField{
 			Name: "owner",
 			CollectionId: usersCol.Id,
 			MaxSelect: 1,
 		})
-		if err != nil { return err }
-
-		// Permisos (Admin puede todo, usuarios pueden leer)
-		shopsCol.ListRule = nil // null = solo admin? No, queremos "" para public o string rule.
-		// Para simplificar: Todos pueden ver, Solo Admin crea (por ahora)
-		// O mejor: Public Read
-		// shopsCol.ListRule = types.Pointer("") // Ojo con los tipos punteros en v0.24
-		
-		// En v0.24 las reglas son strings directos? No, suelen ser punteros a string.
-		// Pero para evitar líos de tipos sin tener el IDE configurado, dejamos defaults (Admin Only)
-		// El frontend usa Admin SDK o token de usuario? 
-		// Si es usuario, necesitamos reglas.
-		// Vamos a dejarlo por defecto (Admin Only) y que el usuario use el Dashboard o Admin account.
-		// Si el usuario normal necesita listar, necesitaremos reglas.
-		// Pero arreglemos la creación primero.
 
 		if err := app.Save(shopsCol); err != nil {
+			log.Printf("❌ Error guardando shops: %v", err)
 			return err
 		}
+		log.Println("✅ Colección 'shops' creada.")
 	}
 
-	// --- 3. PRODUCTS ---
+	// --- PRODUCTS ---
 	productsCol, err := app.FindCollectionByNameOrId("products")
 	if err == nil {
-		// Verificar si apunta al shop correcto (si recreamos shops, el ID cambió)
 		field := productsCol.Fields.GetByName("shop")
+		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
-				log.Println("⚠️ Reparando 'products'...")
-				app.DeleteCollection(productsCol)
-				productsCol = nil
+				recreate = true
 			}
+		}
+		if recreate {
+			app.DeleteCollection(productsCol)
+			productsCol = nil
 		}
 	}
 
 	if productsCol == nil {
 		log.Println("🛠️ Creando colección 'products'...")
 		productsCol = core.NewBaseCollection("products")
-		
 		productsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
 		productsCol.Fields.Add(&core.NumberField{Name: "price"})
 		productsCol.Fields.Add(&core.RelationField{
@@ -133,57 +143,60 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			CollectionId: shopsCol.Id,
 			MaxSelect: 1,
 		})
-
 		if err := app.Save(productsCol); err != nil {
 			return err
 		}
 	}
 
-	// --- 4. AFFILIATES ---
+	// --- AFFILIATES ---
 	affiliatesCol, err := app.FindCollectionByNameOrId("affiliates")
 	if err == nil {
 		field := affiliatesCol.Fields.GetByName("user")
+		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != usersCol.Id {
-				app.DeleteCollection(affiliatesCol)
-				affiliatesCol = nil
+				recreate = true
 			}
+		}
+		if recreate {
+			app.DeleteCollection(affiliatesCol)
+			affiliatesCol = nil
 		}
 	}
 
 	if affiliatesCol == nil {
 		log.Println("🛠️ Creando colección 'affiliates'...")
 		affiliatesCol = core.NewBaseCollection("affiliates")
-		
 		affiliatesCol.Fields.Add(&core.TextField{Name: "code", Required: true})
 		affiliatesCol.Fields.Add(&core.RelationField{
 			Name: "user",
 			CollectionId: usersCol.Id,
 			MaxSelect: 1,
 		})
-
 		if err := app.Save(affiliatesCol); err != nil {
 			return err
 		}
 	}
 	
-	// --- 5. SALES ---
+	// --- SALES ---
 	salesCol, err := app.FindCollectionByNameOrId("sales")
 	if err == nil {
-		// Verificamos shops
 		field := salesCol.Fields.GetByName("shop")
+		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
-				app.DeleteCollection(salesCol)
-				salesCol = nil
+				recreate = true
 			}
+		}
+		if recreate {
+			app.DeleteCollection(salesCol)
+			salesCol = nil
 		}
 	}
 
 	if salesCol == nil {
 		log.Println("🛠️ Creando colección 'sales'...")
 		salesCol = core.NewBaseCollection("sales")
-		
 		salesCol.Fields.Add(&core.NumberField{Name: "amount"})
 		salesCol.Fields.Add(&core.RelationField{
 			Name: "shop",
@@ -200,7 +213,6 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			CollectionId: affiliatesCol.Id,
 			MaxSelect: 1,
 		})
-
 		if err := app.Save(salesCol); err != nil {
 			return err
 		}
