@@ -33,35 +33,26 @@ export function Shops() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let ownerId = pb.authStore.model?.id;
+      let ownerId = null;
 
-      // Si es admin, es OBLIGATORIO asignar un dueño (usuario normal)
-      if (isAdmin) {
-        if (!ownerEmail) {
-          alert("Como Administrador, no puedes ser dueño directo. Debes especificar el email de un usuario registrado.");
-          return;
-        }
+      // Si NO soy admin, el dueño soy yo (usuario normal)
+      if (!isAdmin && pb.authStore.model) {
+        ownerId = pb.authStore.model.id;
+      }
 
+      // Si es admin y especificó un email de dueño, buscar ese usuario
+      if (isAdmin && ownerEmail) {
         try {
-          // Buscar si el usuario ya existe (sin auto-cancelación)
-          const user = await pb.collection('users').getFirstListItem(`email="${ownerEmail}"`, { requestKey: null });
+          const user = await pb.collection('users').getFirstListItem(`email="${ownerEmail}"`);
           ownerId = user.id;
         } catch (err) {
-          // Si no existe, crearlo automáticamente
-          if(confirm(`El usuario ${ownerEmail} no existe. ¿Quieres crearlo automáticamente con contraseña '12345678'?`)) {
-            const newUser = await pb.collection('users').create({
-              email: ownerEmail,
-              password: '12345678',
-              passwordConfirm: '12345678',
-              emailVisibility: true
-            }, { requestKey: null }); // Sin auto-cancelación
-            ownerId = newUser.id;
-            alert(`Usuario creado: ${ownerEmail} / 12345678`);
-          } else {
-            return;
-          }
+          alert("Usuario no encontrado con ese email. Crea el usuario primero.");
+          return;
         }
       }
+
+      // Si soy admin y NO puse email, la tienda se crea sin dueño (del sistema)
+      // OJO: Si soy admin, NO puedo ponerme a mí mismo como dueño porque no estoy en la colección 'users'
 
       // INTENTO DE DEBUG: Imprimir qué estamos enviando
       console.log("Enviando a PocketBase:", {
