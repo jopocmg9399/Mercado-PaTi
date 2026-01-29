@@ -89,6 +89,7 @@ func main() {
 
 // ensureSchema crea o repara las colecciones necesarias
 func ensureSchema(app *pocketbase.PocketBase) error {
+	/*
 	usersCol, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
@@ -262,6 +263,7 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			return err
 		}
 	}
-
+	*/
+	log.Println("⚠️ Schema verification temporarily disabled for build debugging.")
 	return nil
 }
