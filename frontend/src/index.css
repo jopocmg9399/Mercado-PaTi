@@ -1,0 +1,78 @@
+:root {
+  --color-blanco: #FFFFFF;
+  --color-beige: #F9F7F0; /* Un beige muy suave para fondos */
+  --color-dorado: #D4AF37;
+  --color-dorado-brillo: #E5C158;
+  --color-carmelita: #CD853F; /* Peru */
+  --color-marron: #5D4037;
+  --color-marron-oscuro: #3E2723;
+  
+  --bg-main: var(--color-beige);
+  --bg-sidebar: var(--color-marron);
+  --text-primary: var(--color-marron-oscuro);
+  --text-on-dark: var(--color-blanco);
+  --accent: var(--color-dorado);
+  --btn-primary: var(--color-marron);
+  --btn-primary-hover: var(--color-carmelita);
+  --btn-secondary: var(--color-dorado);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-marron);
+}
+
+/* Clases de utilidad rápida */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.btn-primary {
+  background-color: var(--btn-primary);
+  color: var(--text-on-dark);
+}
+
+.btn-primary:hover {
+  background-color: var(--btn-primary-hover);
+}
+
+.btn-accent {
+  background-color: var(--accent);
+  color: var(--color-marron-oscuro);
+}
+
+.btn-accent:hover {
+  background-color: var(--color-dorado-brillo);
+}
+
+.card {
+  background-color: var(--color-blanco);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  padding: 20px;
+  border: 1px solid rgba(93, 64, 55, 0.1);
+}
+
+input, select, textarea {
+  padding: 8px;
+  border: 1px solid var(--color-carmelita);
+  border-radius: 4px;
+  background-color: var(--color-blanco);
+}
+
+input:focus, select:focus {
+  outline: 2px solid var(--color-dorado);
+  border-color: transparent;
+}

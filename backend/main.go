@@ -138,6 +138,7 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		productsCol = core.NewBaseCollection("products")
 		productsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
 		productsCol.Fields.Add(&core.NumberField{Name: "price"})
+		productsCol.Fields.Add(&core.JSONField{Name: "group_prices"}) // Para precios por agrupaciones ilimitadas
 		productsCol.Fields.Add(&core.RelationField{
 			Name: "shop",
 			CollectionId: shopsCol.Id,

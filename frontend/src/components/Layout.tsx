@@ -12,58 +12,67 @@ export function Layout() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
-      <aside style={{ width: '250px', backgroundColor: '#f0f2f5', padding: '20px', borderRight: '1px solid #ddd' }}>
-        <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+      <nav style={{
+        width: '250px',
+        backgroundColor: 'var(--bg-sidebar)',
+        color: 'var(--text-on-dark)',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
           <img 
             src="/logo.jpeg" 
             alt="Mercado PaTi" 
-            style={{ maxWidth: '100%', maxHeight: '80px', objectFit: 'contain' }}
+            style={{ maxWidth: '100%', maxHeight: '80px', objectFit: 'contain', borderRadius: '4px' }}
             onError={(e) => {
               e.currentTarget.style.display = 'none';
-              e.currentTarget.nextElementSibling!.removeAttribute('style'); // Mostrar texto si falla imagen
+              e.currentTarget.nextElementSibling!.removeAttribute('style');
             }}
           />
-          <h2 style={{ display: 'none', margin: '10px 0', color: '#333' }}>Mercado PaTi</h2>
+          <h2 style={{ display: 'none', color: 'var(--color-dorado)', margin: 0 }}>Mercado PaTi</h2>
+          </div>
         </div>
 
-        <div style={{ marginBottom: '20px', fontSize: '0.9em', color: '#666' }}>
-          Hola, {user?.email} <br />
-          <span style={{ fontSize: '0.8em', background: '#ddd', padding: '2px 5px', borderRadius: '4px' }}>
-            {user?.collectionName === '_superusers' ? 'ADMIN' : 'USUARIO'}
-          </span>
-        </div>
-        
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <Link to="/" style={linkStyle}>📊 Dashboard</Link>
-          <Link to="/shops" style={linkStyle}>🏪 Tiendas</Link>
-          <Link to="/products" style={linkStyle}>📦 Productos</Link>
-          <Link to="/affiliates" style={linkStyle}>🤝 Afiliados</Link>
-          <Link to="/sales" style={linkStyle}>💰 Ventas</Link>
-        </nav>
+        <ul style={{ listStyle: 'none', padding: 0, flex: 1 }}>
+          <li style={{ marginBottom: '15px' }}>
+            <Link to="/" style={{ color: 'var(--color-dorado)', textDecoration: 'none', fontSize: '1.1em', fontWeight: 'bold' }}>Dashboard</Link>
+          </li>
+          <li style={{ marginBottom: '15px' }}>
+            <Link to="/shops" style={{ color: 'white', textDecoration: 'none' }}>🏪 Tiendas</Link>
+          </li>
+          <li style={{ marginBottom: '15px' }}>
+            <Link to="/products" style={{ color: 'white', textDecoration: 'none' }}>📦 Productos y Precios</Link>
+          </li>
+          <li style={{ marginBottom: '15px' }}>
+            <Link to="/affiliates" style={{ color: 'white', textDecoration: 'none' }}>🤝 Afiliados</Link>
+          </li>
+          <li style={{ marginBottom: '15px' }}>
+            <Link to="/sales" style={{ color: 'white', textDecoration: 'none' }}>💰 Ventas</Link>
+          </li>
+        </ul>
 
         <button 
           onClick={handleLogout}
-          style={{ marginTop: 'auto', width: '100%', padding: '10px', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          className="btn"
+          style={{
+            backgroundColor: 'var(--color-dorado)',
+            color: 'var(--color-marron-oscuro)',
+            marginTop: 'auto'
+          }}
         >
           Cerrar Sesión
         </button>
-      </aside>
+      </nav>
 
       {/* Main Content */}
-      <main style={{ flex: 1, padding: '30px', backgroundColor: '#fff' }}>
+      <main style={{ flex: 1, padding: '40px', backgroundColor: 'var(--bg-main)' }}>
         <Outlet />
       </main>
     </div>
   );
 }
-
-const linkStyle = {
-  textDecoration: 'none',
-  color: '#444',
-  padding: '10px',
-  borderRadius: '4px',
-  display: 'block',
-  transition: 'background 0.2s'
-};
