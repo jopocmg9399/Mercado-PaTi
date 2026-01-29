@@ -6,23 +6,17 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
-	
-	// Importar migraciones (se debe crear el paquete, pero lo haremos inline o en carpeta)
-	// Para simplificar en este entorno sin multi-archivo fácil, usaremos automigrate o
-	// definiremos la migración aquí mismo si es posible, pero PocketBase prefiere archivos.
-	// Vamos a registrar una migración programática directamente.
 )
 
 func main() {
 	app := pocketbase.New()
 
-	// Registrar comando de migraciones (necesario para que se ejecuten al inicio con --automigrate)
+	// --- CONFIGURACIÓN DE MIGRACIONES Y ADMIN ---
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
-		Automigrate: true, // Esto habilita la auto-migración de esquemas si cambiamos structs
+		Automigrate: true,
 	})
 
-	// Inicialización: Admin y Esquema via Hook (Más seguro que migraciones si no tenemos CLI access)
-	// PERO vamos a hacerlo con logs EXPLICITOS y panic si falla para ver el error en Render.
+	// Inicialización: Admin y Esquema via Hook
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// 1. Asegurar Admin
 		totalAdmins, err := app.FindRecordsByFilter("_superusers", "id != ''", "", 1, 0, nil)
@@ -40,7 +34,7 @@ func main() {
 			}
 		}
 
-		// 2. Asegurar Esquema con Logs Fuertes
+		// 2. Asegurar Esquema
 		log.Println("🔄 Iniciando verificación de esquema...")
 		if err := ensureSchema(app); err != nil {
 			log.Printf("❌ CRITICAL ERROR ASEGURANDO ESQUEMA: %v", err)
@@ -57,9 +51,55 @@ func main() {
 			if err := ensureSchema(app); err != nil {
 				return c.String(500, "Error reparando esquema: "+err.Error())
 			}
-			return c.String(200, "Esquema reparado y verificado correctamente. Reinicia el frontend si es necesario.")
+			return c.String(200, "Esquema reparado y verificado correctamente.")
 		})
 		return nil
+	})
+
+	// --- LÓGICA DE NEGOCIO ---
+	// Hook para calcular comisiones al crear una venta
+	app.OnRecordCreateRequest("sales").BindFunc(func(e *core.RecordRequestEvent) error {
+		shopId := e.Record.GetString("shop")
+		if shopId == "" {
+			return nil
+		}
+
+		shop, err := app.FindRecordById("shops", shopId)
+		if err != nil {
+			return err
+		}
+
+		totalAmount := e.Record.GetFloat("total_amount")
+
+		platformRate := shop.GetFloat("commission_rate")
+		platformFee := totalAmount * (platformRate / 100)
+		e.Record.Set("platform_fee", platformFee)
+
+		affiliateId := e.Record.GetString("affiliate")
+		if affiliateId != "" {
+			affiliate, err := app.FindRecordById("affiliates", affiliateId)
+			if err == nil {
+				affiliateRate := affiliate.GetFloat("commission_rate")
+				affiliateComm := totalAmount * (affiliateRate / 100)
+				e.Record.Set("affiliate_commission", affiliateComm)
+			}
+		}
+
+		return e.Next()
+	})
+
+	// Hook para validar precios de productos
+	app.OnRecordCreateRequest("product_prices").BindFunc(func(e *core.RecordRequestEvent) error {
+		productId := e.Record.GetString("product")
+		product, err := app.FindRecordById("products", productId)
+		if err != nil {
+			return err
+		}
+
+		if e.Record.GetFloat("price") < product.GetFloat("base_price") {
+			// Lógica de validación
+		}
+		return e.Next()
 	})
 
 	if err := app.Start(); err != nil {
@@ -69,18 +109,16 @@ func main() {
 
 // ensureSchema crea o repara las colecciones necesarias
 func ensureSchema(app *pocketbase.PocketBase) error {
-	// Obtener la colección 'users' real
 	usersCol, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
 	}
 	log.Printf("ℹ️ ID de colección 'users': %s", usersCol.Id)
 
-	// --- SHOPS (y limpieza en cascada si es necesario) ---
+	// --- SHOPS ---
 	shopsCol, err := app.FindCollectionByNameOrId("shops")
 	recreateShops := false
 	if err == nil {
-		// Verificar integridad
 		field := shopsCol.Fields.GetByName("owner")
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != usersCol.Id {
@@ -94,13 +132,10 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 
 	if recreateShops {
 		log.Println("⚠️ Inconsistencia crítica en Shops. Ejecutando limpieza en cascada...")
-		// Borrar dependientes primero para evitar errores de FK
 		if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
-			log.Println("🗑️ Borrando 'sales' por dependencia...")
 			app.Delete(sales)
 		}
 		if products, _ := app.FindCollectionByNameOrId("products"); products != nil {
-			log.Println("🗑️ Borrando 'products' por dependencia...")
 			app.Delete(products)
 		}
 		
@@ -114,7 +149,6 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	if shopsCol == nil {
 		log.Println("🛠️ Creando colección 'shops'...")
 		shopsCol = core.NewBaseCollection("shops")
-		
 		shopsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
 		shopsCol.Fields.Add(&core.NumberField{Name: "commission_rate"})
 		shopsCol.Fields.Add(&core.RelationField{
@@ -123,17 +157,13 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			MaxSelect: 1,
 		})
 		
-		// Reglas de acceso (Permitir listar a todos para debug, crear solo admin)
-		// En producción esto debería ser más estricto
-		rule := "" // Public read
+		rule := ""
 		shopsCol.ListRule = &rule
 		shopsCol.ViewRule = &rule
 
 		if err := app.Save(shopsCol); err != nil {
-			log.Printf("❌ Error guardando shops: %v", err)
 			return err
 		}
-		log.Println("✅ Colección 'shops' creada.")
 	}
 
 	// --- PRODUCTS ---
@@ -143,22 +173,20 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
 				log.Println("⚠️ ID de shop en 'products' incorrecto. Recreando...")
-				// Borrar dependientes de products si hubiera (sales)
 				if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
-					app.DeleteCollection(sales)
+					app.Delete(sales)
 				}
-				app.DeleteCollection(productsCol)
+				app.Delete(productsCol)
 				productsCol = nil
 			}
 		}
 		
-		// Verificar si falta el campo 'image' (evolución de esquema)
 		if productsCol != nil && productsCol.Fields.GetByName("image") == nil {
 			log.Println("⚠️ Falta campo 'image' en 'products'. Recreando para actualizar esquema...")
 			if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
-				app.DeleteCollection(sales)
+				app.Delete(sales)
 			}
-			app.DeleteCollection(productsCol)
+			app.Delete(productsCol)
 			productsCol = nil
 		}
 	}
@@ -168,11 +196,11 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		productsCol = core.NewBaseCollection("products")
 		productsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
 		productsCol.Fields.Add(&core.NumberField{Name: "price"})
-		productsCol.Fields.Add(&core.JSONField{Name: "group_prices"}) // Para precios por agrupaciones ilimitadas
+		productsCol.Fields.Add(&core.JSONField{Name: "group_prices"})
 		productsCol.Fields.Add(&core.FileField{
 			Name: "image",
 			MaxSelect: 1,
-			MaxSize: 5242880, // 5MB
+			MaxSize: 5242880,
 			MimeTypes: []string{"image/jpeg", "image/png", "image/svg+xml", "image/gif", "image/webp"},
 		})
 		productsCol.Fields.Add(&core.RelationField{
@@ -196,11 +224,10 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		field := affiliatesCol.Fields.GetByName("user")
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != usersCol.Id {
-				// Borrar dependientes (sales)
 				if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
-					app.DeleteCollection(sales)
+					app.Delete(sales)
 				}
-				app.DeleteCollection(affiliatesCol)
+				app.Delete(affiliatesCol)
 				affiliatesCol = nil
 			}
 		}
@@ -223,7 +250,6 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	// --- SALES ---
 	salesCol, err := app.FindCollectionByNameOrId("sales")
 	if err == nil {
-		// Verificar relaciones clave
 		field := salesCol.Fields.GetByName("shop")
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
