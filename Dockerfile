@@ -13,7 +13,7 @@ RUN go mod download
 # Copiar el código fuente
 COPY backend/*.go ./
 
-# Asegurar dependencias
+# Asegurar dependencias y generar go.sum
 RUN go mod tidy
 
 # Compilar la aplicación
