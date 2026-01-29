@@ -10,7 +10,6 @@ import (
 func main() {
 	app := pocketbase.New()
 
-	/*
 	// Inicialización: Admin y Esquema via Hook
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// 1. Asegurar Admin
@@ -82,7 +81,6 @@ func main() {
 
 		return e.Next()
 	})
-	*/
 
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
@@ -91,7 +89,6 @@ func main() {
 
 // ensureSchema crea o repara las colecciones necesarias
 func ensureSchema(app *pocketbase.PocketBase) error {
-	/*
 	usersCol, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
@@ -265,7 +262,6 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			return err
 		}
 	}
-	*/
-	log.Println("⚠️ Schema verification temporarily disabled for build debugging.")
+
 	return nil
 }
