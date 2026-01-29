@@ -5,22 +5,16 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 )
 
 func main() {
 	app := pocketbase.New()
 
-	// --- CONFIGURACIÓN DE MIGRACIONES Y ADMIN ---
-	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
-		Automigrate: true,
-	})
-
 	// Inicialización: Admin y Esquema via Hook
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// 1. Asegurar Admin
-		totalAdmins, err := app.FindRecordsByFilter("_superusers", "id != ''", "", 1, 0, nil)
-		if err == nil && len(totalAdmins) == 0 {
+		totalAdmins, err := app.CountRecords("_superusers")
+		if err == nil && totalAdmins == 0 {
 			superuserCollection, err := app.FindCollectionByNameOrId("_superusers")
 			if err == nil {
 				record := core.NewRecord(superuserCollection)

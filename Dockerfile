@@ -17,8 +17,8 @@ COPY backend/pb_schema.json ./
 # Asegurar dependencias y generar go.sum
 RUN go mod tidy
 
-# Compilar la aplicación
-RUN CGO_ENABLED=0 GOOS=linux go build -o /pocketbase .
+# Compilar la aplicación con logs detallados
+RUN CGO_ENABLED=0 GOOS=linux go build -v -o /pocketbase .
 
 FROM alpine:latest
 
