@@ -1,0 +1,36 @@
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+# Copiar archivos de dependencias
+COPY go.mod ./
+# Si tuvieras go.sum, descomenta la siguiente línea
+# COPY go.sum ./
+
+# Descargar dependencias
+RUN go mod download
+
+# Copiar el código fuente
+COPY *.go ./
+
+# Compilar la aplicación
+RUN CGO_ENABLED=0 GOOS=linux go build -o /pocketbase .
+
+FROM alpine:latest
+
+WORKDIR /app
+
+# Instalar certificados CA (necesario para HTTPS)
+RUN apk --no-cache add ca-certificates
+
+# Copiar el binario compilado
+COPY --from=builder /pocketbase /app/pocketbase
+
+# Exponer el puerto 8090
+EXPOSE 8090
+
+# Directorio para la base de datos (se montará un volumen aquí en Render)
+VOLUME /pb_data
+
+# Comando de inicio
+CMD ["/app/pocketbase", "serve", "--http=0.0.0.0:8090"]
