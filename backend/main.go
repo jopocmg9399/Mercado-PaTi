@@ -153,6 +153,16 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 				productsCol = nil
 			}
 		}
+		
+		// Verificar si falta el campo 'image' (evolución de esquema)
+		if productsCol != nil && productsCol.Fields.GetByName("image") == nil {
+			log.Println("⚠️ Falta campo 'image' en 'products'. Recreando para actualizar esquema...")
+			if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
+				app.DeleteCollection(sales)
+			}
+			app.DeleteCollection(productsCol)
+			productsCol = nil
+		}
 	}
 
 	if productsCol == nil {
@@ -161,6 +171,12 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		productsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
 		productsCol.Fields.Add(&core.NumberField{Name: "price"})
 		productsCol.Fields.Add(&core.JSONField{Name: "group_prices"}) // Para precios por agrupaciones ilimitadas
+		productsCol.Fields.Add(&core.FileField{
+			Name: "image",
+			MaxSelect: 1,
+			MaxSize: 5242880, // 5MB
+			MimeTypes: []string{"image/jpeg", "image/png", "image/svg+xml", "image/gif", "image/webp"},
+		})
 		productsCol.Fields.Add(&core.RelationField{
 			Name: "shop",
 			CollectionId: shopsCol.Id,
