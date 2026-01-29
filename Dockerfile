@@ -3,15 +3,15 @@ FROM golang:1.23-alpine AS builder
 WORKDIR /app
 
 # Copiar archivos de dependencias
-COPY go.mod ./
-# Si tuvieras go.sum, descomenta la siguiente línea
-# COPY go.sum ./
+COPY backend/go.mod ./
+# Si tuvieras go.sum
+# COPY backend/go.sum ./
 
 # Descargar dependencias
 RUN go mod download
 
 # Copiar el código fuente
-COPY *.go ./
+COPY backend/*.go ./
 
 # Compilar la aplicación
 RUN CGO_ENABLED=0 GOOS=linux go build -o /pocketbase .
