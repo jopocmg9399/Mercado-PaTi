@@ -10,8 +10,9 @@ COPY backend/go.mod ./
 # Descargar dependencias
 RUN go mod download
 
-# Copiar el código fuente
+# Copiar el código fuente y esquema
 COPY backend/*.go ./
+COPY backend/pb_schema.json ./
 
 # Asegurar dependencias y generar go.sum
 RUN go mod tidy
@@ -28,6 +29,7 @@ RUN apk --no-cache add ca-certificates
 
 # Copiar el binario compilado
 COPY --from=builder /pocketbase /app/pocketbase
+COPY --from=builder /app/pb_schema.json /app/pb_schema.json
 
 # Exponer el puerto 8090
 EXPOSE 8090
