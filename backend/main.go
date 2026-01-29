@@ -45,12 +45,22 @@ func main() {
 		log.Println("🔄 Iniciando verificación de esquema...")
 		if err := ensureSchema(app); err != nil {
 			log.Printf("❌ CRITICAL ERROR ASEGURANDO ESQUEMA: %v", err)
-			// No hacemos panic para no tumbar el servidor, pero el log debe salir.
 		} else {
 			log.Println("✅ Esquema verificado correctamente.")
 		}
 
 		return e.Next()
+	})
+
+	// Endpoint para forzar reparación de esquema manualmente
+	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		e.Router.GET("/api/fix-schema", func(c *core.RequestEvent) error {
+			if err := ensureSchema(app); err != nil {
+				return c.String(500, "Error reparando esquema: "+err.Error())
+			}
+			return c.String(200, "Esquema reparado y verificado correctamente. Reinicia el frontend si es necesario.")
+		})
+		return nil
 	})
 
 	if err := app.Start(); err != nil {
@@ -67,35 +77,39 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	}
 	log.Printf("ℹ️ ID de colección 'users': %s", usersCol.Id)
 
-	// --- SHOPS ---
+	// --- SHOPS (y limpieza en cascada si es necesario) ---
 	shopsCol, err := app.FindCollectionByNameOrId("shops")
+	recreateShops := false
 	if err == nil {
 		// Verificar integridad
 		field := shopsCol.Fields.GetByName("owner")
-		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != usersCol.Id {
 				log.Println("⚠️ ID de owner en 'shops' incorrecto. Marcado para recreación.")
-				recreate = true
+				recreateShops = true
 			}
 		} else {
-			log.Println("⚠️ Campo owner en 'shops' no es relación. Marcado para recreación.")
-			recreate = true
+			recreateShops = true
 		}
+	}
 
-		if recreate {
-			log.Println("🗑️ Eliminando colección 'shops' corrupta...")
-			if err := app.DeleteCollection(shopsCol); err != nil {
-				return err
-			}
-			shopsCol = nil
+	if recreateShops {
+		log.Println("⚠️ Inconsistencia crítica en Shops. Ejecutando limpieza en cascada...")
+		// Borrar dependientes primero para evitar errores de FK
+		if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
+			log.Println("🗑️ Borrando 'sales' por dependencia...")
+			app.DeleteCollection(sales)
 		}
-	} else {
-		// Ignorar error si no existe, simplemente es nil
-		if !strings.Contains(err.Error(), "no rows") && !strings.Contains(err.Error(), "not found") {
-			// Loguear error real si no es "no encontrado"
-			log.Printf("⚠️ Error buscando shops: %v", err)
+		if products, _ := app.FindCollectionByNameOrId("products"); products != nil {
+			log.Println("🗑️ Borrando 'products' por dependencia...")
+			app.DeleteCollection(products)
 		}
+		
+		log.Println("🗑️ Eliminando colección 'shops' corrupta...")
+		if err := app.DeleteCollection(shopsCol); err != nil {
+			return err
+		}
+		shopsCol = nil
 	}
 
 	if shopsCol == nil {
@@ -109,6 +123,12 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			CollectionId: usersCol.Id,
 			MaxSelect: 1,
 		})
+		
+		// Reglas de acceso (Permitir listar a todos para debug, crear solo admin)
+		// En producción esto debería ser más estricto
+		rule := "" // Public read
+		shopsCol.ListRule = &rule
+		shopsCol.ViewRule = &rule
 
 		if err := app.Save(shopsCol); err != nil {
 			log.Printf("❌ Error guardando shops: %v", err)
@@ -121,15 +141,16 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	productsCol, err := app.FindCollectionByNameOrId("products")
 	if err == nil {
 		field := productsCol.Fields.GetByName("shop")
-		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
-				recreate = true
+				log.Println("⚠️ ID de shop en 'products' incorrecto. Recreando...")
+				// Borrar dependientes de products si hubiera (sales)
+				if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
+					app.DeleteCollection(sales)
+				}
+				app.DeleteCollection(productsCol)
+				productsCol = nil
 			}
-		}
-		if recreate {
-			app.DeleteCollection(productsCol)
-			productsCol = nil
 		}
 	}
 
@@ -144,6 +165,11 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 			CollectionId: shopsCol.Id,
 			MaxSelect: 1,
 		})
+		
+		rule := ""
+		productsCol.ListRule = &rule
+		productsCol.ViewRule = &rule
+
 		if err := app.Save(productsCol); err != nil {
 			return err
 		}
@@ -153,15 +179,15 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	affiliatesCol, err := app.FindCollectionByNameOrId("affiliates")
 	if err == nil {
 		field := affiliatesCol.Fields.GetByName("user")
-		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != usersCol.Id {
-				recreate = true
+				// Borrar dependientes (sales)
+				if sales, _ := app.FindCollectionByNameOrId("sales"); sales != nil {
+					app.DeleteCollection(sales)
+				}
+				app.DeleteCollection(affiliatesCol)
+				affiliatesCol = nil
 			}
-		}
-		if recreate {
-			app.DeleteCollection(affiliatesCol)
-			affiliatesCol = nil
 		}
 	}
 
@@ -182,16 +208,13 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	// --- SALES ---
 	salesCol, err := app.FindCollectionByNameOrId("sales")
 	if err == nil {
+		// Verificar relaciones clave
 		field := salesCol.Fields.GetByName("shop")
-		recreate := false
 		if relField, ok := field.(*core.RelationField); ok {
 			if relField.CollectionId != shopsCol.Id {
-				recreate = true
+				app.DeleteCollection(salesCol)
+				salesCol = nil
 			}
-		}
-		if recreate {
-			app.DeleteCollection(salesCol)
-			salesCol = nil
 		}
 	}
 
