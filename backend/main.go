@@ -88,20 +88,6 @@ func main() {
 		return e.Next()
 	})
 
-	// Hook para validar precios de productos
-	app.OnRecordCreateRequest("product_prices").BindFunc(func(e *core.RecordRequestEvent) error {
-		productId := e.Record.GetString("product")
-		product, err := app.FindRecordById("products", productId)
-		if err != nil {
-			return err
-		}
-
-		if e.Record.GetFloat("price") < product.GetFloat("base_price") {
-			// Lógica de validación
-		}
-		return e.Next()
-	})
-
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
 	}
