@@ -17,7 +17,7 @@ export function Layout() {
       <aside style={{ width: '250px', backgroundColor: '#f0f2f5', padding: '20px', borderRight: '1px solid #ddd' }}>
         <div style={{ marginBottom: '20px', textAlign: 'center' }}>
           <img 
-            src="/logo.png" 
+            src="/logo.jpeg" 
             alt="Mercado PaTi" 
             style={{ maxWidth: '100%', maxHeight: '80px', objectFit: 'contain' }}
             onError={(e) => {

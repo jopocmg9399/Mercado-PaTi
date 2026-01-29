@@ -47,17 +47,25 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 	}
 
 	// --- SHOPS ---
-	// Verificar si existe y si está rota (contexto inválido)
+	// ESTRATEGIA AGRESIVA: Si la colección existe, verificar si el campo owner es válido.
+	// Si da problemas, la borramos y recreamos.
 	shopsCol, err := app.FindCollectionByNameOrId("shops")
 	if err == nil {
-		// Si existe, verificamos si el campo 'owner' apunta correctamente
-		field := shopsCol.Fields.GetByName("owner")
-		if relField, ok := field.(*core.RelationField); ok {
-			if relField.CollectionId != usersCol.Id {
-				log.Println("⚠️ Colección 'shops' tiene referencias rotas. Recreando...")
-				app.DeleteCollection(shopsCol)
-				shopsCol = nil
+		// Verificar integridad del campo owner
+		ownerField := shopsCol.Fields.GetByName("owner")
+		isValid := false
+		if relField, ok := ownerField.(*core.RelationField); ok {
+			if relField.CollectionId == usersCol.Id {
+				isValid = true
 			}
+		}
+
+		if !isValid {
+			log.Println("⚠️ DETECTADO ESQUEMA CORRUPTO EN 'shops'. Eliminando para reparar...")
+			if err := app.DeleteCollection(shopsCol); err != nil {
+				return err
+			}
+			shopsCol = nil // Forzar recreación
 		}
 	}
 
@@ -96,6 +104,104 @@ func ensureSchema(app *pocketbase.PocketBase) error {
 		// Pero arreglemos la creación primero.
 
 		if err := app.Save(shopsCol); err != nil {
+			return err
+		}
+	}
+
+	// --- 3. PRODUCTS ---
+	productsCol, err := app.FindCollectionByNameOrId("products")
+	if err == nil {
+		// Verificar si apunta al shop correcto (si recreamos shops, el ID cambió)
+		field := productsCol.Fields.GetByName("shop")
+		if relField, ok := field.(*core.RelationField); ok {
+			if relField.CollectionId != shopsCol.Id {
+				log.Println("⚠️ Reparando 'products'...")
+				app.DeleteCollection(productsCol)
+				productsCol = nil
+			}
+		}
+	}
+
+	if productsCol == nil {
+		log.Println("🛠️ Creando colección 'products'...")
+		productsCol = core.NewBaseCollection("products")
+		
+		productsCol.Fields.Add(&core.TextField{Name: "name", Required: true})
+		productsCol.Fields.Add(&core.NumberField{Name: "price"})
+		productsCol.Fields.Add(&core.RelationField{
+			Name: "shop",
+			CollectionId: shopsCol.Id,
+			MaxSelect: 1,
+		})
+
+		if err := app.Save(productsCol); err != nil {
+			return err
+		}
+	}
+
+	// --- 4. AFFILIATES ---
+	affiliatesCol, err := app.FindCollectionByNameOrId("affiliates")
+	if err == nil {
+		field := affiliatesCol.Fields.GetByName("user")
+		if relField, ok := field.(*core.RelationField); ok {
+			if relField.CollectionId != usersCol.Id {
+				app.DeleteCollection(affiliatesCol)
+				affiliatesCol = nil
+			}
+		}
+	}
+
+	if affiliatesCol == nil {
+		log.Println("🛠️ Creando colección 'affiliates'...")
+		affiliatesCol = core.NewBaseCollection("affiliates")
+		
+		affiliatesCol.Fields.Add(&core.TextField{Name: "code", Required: true})
+		affiliatesCol.Fields.Add(&core.RelationField{
+			Name: "user",
+			CollectionId: usersCol.Id,
+			MaxSelect: 1,
+		})
+
+		if err := app.Save(affiliatesCol); err != nil {
+			return err
+		}
+	}
+	
+	// --- 5. SALES ---
+	salesCol, err := app.FindCollectionByNameOrId("sales")
+	if err == nil {
+		// Verificamos shops
+		field := salesCol.Fields.GetByName("shop")
+		if relField, ok := field.(*core.RelationField); ok {
+			if relField.CollectionId != shopsCol.Id {
+				app.DeleteCollection(salesCol)
+				salesCol = nil
+			}
+		}
+	}
+
+	if salesCol == nil {
+		log.Println("🛠️ Creando colección 'sales'...")
+		salesCol = core.NewBaseCollection("sales")
+		
+		salesCol.Fields.Add(&core.NumberField{Name: "amount"})
+		salesCol.Fields.Add(&core.RelationField{
+			Name: "shop",
+			CollectionId: shopsCol.Id,
+			MaxSelect: 1,
+		})
+		salesCol.Fields.Add(&core.RelationField{
+			Name: "product",
+			CollectionId: productsCol.Id,
+			MaxSelect: 1,
+		})
+		salesCol.Fields.Add(&core.RelationField{
+			Name: "affiliate",
+			CollectionId: affiliatesCol.Id,
+			MaxSelect: 1,
+		})
+
+		if err := app.Save(salesCol); err != nil {
 			return err
 		}
 	}
