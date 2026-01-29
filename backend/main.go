@@ -11,7 +11,7 @@ func main() {
 	app := pocketbase.New()
 
 	// Hook para calcular comisiones al crear una venta
-	app.OnRecordCreateRequest("sales").BindFunc(func(e *core.RecordRequestEvent) error {
+	app.OnRecordBeforeCreateRequest("sales").BindFunc(func(e *core.RecordCreateEvent) error {
 		// 1. Obtener la tienda para saber la comisión de la plataforma
 		shopId := e.Record.GetString("shop")
 		if shopId == "" {
@@ -47,7 +47,7 @@ func main() {
 	})
 
 	// Hook para validar que el producto pertenece a la tienda antes de guardar un precio
-	app.OnRecordCreateRequest("product_prices").BindFunc(func(e *core.RecordRequestEvent) error {
+	app.OnRecordBeforeCreateRequest("product_prices").BindFunc(func(e *core.RecordCreateEvent) error {
 		productId := e.Record.GetString("product")
 		product, err := app.FindRecordById("products", productId)
 		if err != nil {

@@ -13,6 +13,9 @@ RUN go mod download
 # Copiar el código fuente
 COPY backend/*.go ./
 
+# Asegurar dependencias
+RUN go mod tidy
+
 # Compilar la aplicación
 RUN CGO_ENABLED=0 GOOS=linux go build -o /pocketbase .
 
