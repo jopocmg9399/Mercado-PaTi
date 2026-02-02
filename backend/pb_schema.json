@@ -107,6 +107,28 @@
                     "maxSelect": 1,
                     "displayFields": null
                 }
+            },
+            {
+                "system": false,
+                "id": "prod_image",
+                "name": "image",
+                "type": "file",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "options": {
+                    "maxSelect": 1,
+                    "maxSize": 5242880,
+                    "mimeTypes": [
+                        "image/jpeg",
+                        "image/png",
+                        "image/svg+xml",
+                        "image/gif",
+                        "image/webp"
+                    ],
+                    "thumbs": [],
+                    "protected": false
+                }
             }
         ],
         "indexes": [],
@@ -151,6 +173,20 @@
                     "minSelect": null,
                     "maxSelect": 1,
                     "displayFields": null
+                }
+            },
+            {
+                "system": false,
+                "id": "aff_commission",
+                "name": "commission_rate",
+                "type": "number",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "options": {
+                    "min": null,
+                    "max": null,
+                    "noDecimal": false
                 }
             }
         ],
@@ -228,6 +264,34 @@
                     "minSelect": null,
                     "maxSelect": 1,
                     "displayFields": null
+                }
+            },
+            {
+                "system": false,
+                "id": "sale_platform_fee",
+                "name": "platform_fee",
+                "type": "number",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "options": {
+                    "min": null,
+                    "max": null,
+                    "noDecimal": false
+                }
+            },
+            {
+                "system": false,
+                "id": "sale_affiliate_commission",
+                "name": "affiliate_commission",
+                "type": "number",
+                "required": false,
+                "presentable": false,
+                "unique": false,
+                "options": {
+                    "min": null,
+                    "max": null,
+                    "noDecimal": false
                 }
             }
         ],
