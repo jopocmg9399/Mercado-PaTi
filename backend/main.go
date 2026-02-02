@@ -23,7 +23,6 @@ func main() {
 		return e.Next()
 	})
 
-	/*
 	// Inicialización: Admin y Esquema via Hook
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// 1. Asegurar Admin
@@ -53,6 +52,7 @@ func main() {
 		return e.Next()
 	})
 
+	/*
 	// Endpoint para forzar reparación de esquema manualmente
 	app.OnBeforeServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.GET("/api/fix-schema", func(c *core.RequestEvent) error {
