@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { pb } from './lib/pocketbase';
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 // Componente simple de Login
 function Login() {
@@ -63,7 +63,7 @@ function ShopDashboard() {
 }
 
 function App() {
-  const [isValid, setIsValid] = useState(pb.authStore.isValid);
+  const [isValid] = useState(pb.authStore.isValid);
 
   return (
     <BrowserRouter>

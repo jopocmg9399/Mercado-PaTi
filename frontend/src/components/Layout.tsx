@@ -3,7 +3,6 @@ import { pb } from '../lib/pocketbase';
 
 export function Layout() {
   const navigate = useNavigate();
-  const user = pb.authStore.model;
 
   const handleLogout = () => {
     pb.authStore.clear();
