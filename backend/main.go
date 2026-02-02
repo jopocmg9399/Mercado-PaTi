@@ -52,7 +52,6 @@ func main() {
 		return e.Next()
 	})
 
-	/*
 	// Endpoint para forzar reparación de esquema manualmente
 	app.OnBeforeServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.GET("/api/fix-schema", func(c *core.RequestEvent) error {
@@ -101,7 +100,6 @@ func main() {
 
 		return e.Next()
 	})
-	*/
 
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
